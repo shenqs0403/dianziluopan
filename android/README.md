@@ -12,7 +12,7 @@ WebView 容器：加载 `web/` 构建出的单文件界面，注入 `DiZhiNative
 app/src/main/
   AndroidManifest.xml
   assets/www/index.html        # 由 web 构建同步进来，不要手改
-  java/com/dianziluopan/app/
+  java/com/linglongopc/dianziluopan/
     MainActivity.kt            # 全屏 WebView + 传感器解算
     DiZhiNative.kt             # window.DiZhiNative 的原生实现
   res/                         # 主题、图标、字符串

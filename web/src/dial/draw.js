@@ -172,11 +172,19 @@ export function drawDegreeRing(ctx, cx, cy, rInner, rOuter, colors, size) {
     ctx.stroke()
   }
 
-  // 每 30° 一个数字，0° 落在正上方
+  // 每 30° 一个数字，0° 落在正上方；0°/180° 用「北」「南」代替数字
+  const CARDINAL = { 0: '北', 180: '南' }
   ctx.fillStyle = colors.text
   for (let d = 0; d < 360; d += 30) {
     const a = ((d - 90) * Math.PI) / 180
-    ctx.fillText(String(d), cx + Math.cos(a) * rText, cy + Math.sin(a) * rText)
+    const label = CARDINAL[d] || String(d)
+    if (CARDINAL[d]) {
+      ctx.font = `bold ${font * 1.05}px sans-serif`
+      ctx.fillText(label, cx + Math.cos(a) * rText, cy + Math.sin(a) * rText)
+      ctx.font = `bold ${font}px sans-serif`
+    } else {
+      ctx.fillText(label, cx + Math.cos(a) * rText, cy + Math.sin(a) * rText)
+    }
   }
   ctx.restore()
 }
@@ -266,11 +274,11 @@ export function drawDial(ctx, o) {
     if (facing) drawMarker(ctx, 0, 0, rMark, facing.centerDeg, '朝', colors.markerFacing, colors)
   }
 
-  ctx.restore()
+  // 外圈角度刻度：属于盘面，跟着一起转，所以画在 save/rotate 之内、盘心用 (0,0)。
+  // 放在天池十字线之前画，0/90/180/270 的长刻度才不会盖住十字线端点。
+  if (showRing) drawDegreeRing(ctx, 0, 0, dialR, size * GEO.ringOuter, colors, size)
 
-  // 外圈角度刻度：不随盘面旋转。要先画，否则 0/90/180/270 的长刻度
-  // 会盖住同样沿轴向的天心十字线端点。
-  if (showRing) drawDegreeRing(ctx, cx, cy, dialR, size * GEO.ringOuter, colors, size)
+  ctx.restore()
 
   // 天池在盘面之上，不随盘面旋转
   drawHub(ctx, cx, cy, hubR, colors, azimuth, showCross, size)

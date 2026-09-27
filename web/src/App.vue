@@ -29,6 +29,8 @@ const sitting = ref(null)
 const facing = ref(null)
 /** 点外圈角度带选定的方位角；null 表示还没选过，跟随陀螺仪 */
 const pickedDeg = ref(null)
+/** 内盘被拖拽转过的角度（盘面坐标系的旋转量） */
+const rotation = ref(0)
 const step = ref(0)
 
 const dialRef = ref(null)
@@ -40,6 +42,12 @@ const calStatus = cal.statusText
 
 /** 校准零偏由 JS 侧补偿，四端共用同一逻辑。 */
 const azimuth = computed(() => normalize(rawAzimuth.value - cal.offset.value))
+/**
+ * 底部右侧「陀螺仪南向」＝红针在「转过来的盘面」上所指的那个度数。
+ * 屏幕角 azimuth+180 对应盘面角要扣掉盘面旋转量，所以内盘一转它就跟着变。
+ */
+const south = computed(() => normalize(azimuth.value + 180 - rotation.value))
+
 /** 底部左侧「选定方位」：没点过就跟随陀螺仪实时方位 */
 const selected = computed(() => (pickedDeg.value == null ? azimuth.value : pickedDeg.value))
 const showCalibrate = ref(!prefs.calibrated)
@@ -125,12 +133,12 @@ function clearAll() {
       <DialCanvas
         ref="dialRef" :azimuth="azimuth" :type="type" :dark="dark" :sitting="sitting" :facing="facing"
         :selected="pickedDeg" :step="step"
-        @pick="onPick" @clear="clearAll"
+        @pick="onPick" @clear="clearAll" @rotate="rotation = $event"
       />
     </div>
 
     <div class="bottom">
-      <BottomBar :azimuth="azimuth" :selected="selected" :sitting="sitting" :facing="facing" />
+      <BottomBar :south="south" :selected="selected" :sitting="sitting" :facing="facing" />
     </div>
 
     <FirstRunNotice v-if="showNotice" :text="NOTICE_TEXT" @confirm="confirmNotice" />

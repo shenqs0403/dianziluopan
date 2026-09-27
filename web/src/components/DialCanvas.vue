@@ -6,7 +6,7 @@
  */
 import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { buildLayers } from '../dial/layers.js'
-import { DARK, GEO, PALETTE, angleAt, drawDegreeRing, drawDial, drawHub } from '../dial/draw.js'
+import { DARK, GEO, PALETTE, angleAt, drawDial, drawHub } from '../dial/draw.js'
 import { normalize } from '../dial/mountains.js'
 
 const props = defineProps({
@@ -20,7 +20,7 @@ const props = defineProps({
   selected: { type: Number, default: null },
   step: { type: Number, default: 0 }
 })
-const emit = defineEmits(['pick', 'clear'])
+const emit = defineEmits(['pick', 'clear', 'rotate'])
 
 const wrap = ref(null)
 const canvas = ref(null)
@@ -79,7 +79,7 @@ function ensurePlate() {
     maxFont: Math.max(8, size * 0.018),
     highlight: null,
     showCross: false,       // 十字线不随盘面旋转
-    showRing: false,        // 角度圈同理，留给每帧层
+    showRing: true,         // 角度圈随内盘一起转，所以要进缓存
     markers: true
   })
   plateKey = key
@@ -124,43 +124,38 @@ function render() {
   ctx.lineWidth = 2
   ctx.strokeRect(1, 1, size - 2, size - 2)
 
-  // 缓存盘面：一次 drawImage 完成旋转
+  // 缓存盘面：一次 drawImage 完成旋转。角度圈已经在缓存里，跟着一起转。
+  const cx = size / 2
+  const cy = size / 2
+  const rEnd = size * GEO.ringOuter
+
   ctx.save()
   ctx.translate(size / 2, size / 2)
   ctx.rotate((rotation.value * Math.PI) / 180)
   ctx.drawImage(plate, -size / 2, -size / 2, size, size)
-  ctx.restore()
 
-  // 这三层都不随盘面旋转。
-  // 角度圈要先画：0/90/180/270 的长刻度正好落在十字线四个端点上，
-  // 反过来会把红色十字线端点盖掉。
-  const cx = size / 2
-  const cy = size / 2
-  const rEnd = size * GEO.ringOuter
-  drawDegreeRing(ctx, cx, cy, dialR, rEnd, c, size)
-
-  // 选定方位：用户点外圈角度带选定的方位角，与陀螺仪实时方位区分开
+  // 选定方位：盘面坐标，要和盘面一起转
   if (props.selected != null) {
     const sa = ((props.selected - 90) * Math.PI) / 180
-    const rs = size * GEO.dial
-    const re = size * GEO.ringOuter
-    ctx.save()
+    const rs = dialR
+    const re = rEnd
     ctx.strokeStyle = c.markerSelected
     ctx.lineWidth = 3
     ctx.lineCap = 'round'
     ctx.beginPath()
-    ctx.moveTo(cx + Math.cos(sa) * (rs + (re - rs) * 0.15), cy + Math.sin(sa) * (rs + (re - rs) * 0.15))
-    ctx.lineTo(cx + Math.cos(sa) * re, cy + Math.sin(sa) * re)
+    ctx.moveTo(Math.cos(sa) * (rs + (re - rs) * 0.15), Math.sin(sa) * (rs + (re - rs) * 0.15))
+    ctx.lineTo(Math.cos(sa) * re, Math.sin(sa) * re)
     ctx.stroke()
     // 端点小圆，和实时指针的金色区分开
     ctx.fillStyle = c.markerSelected
     ctx.beginPath()
-    ctx.arc(cx + Math.cos(sa) * re, cy + Math.sin(sa) * re, 4, 0, Math.PI * 2)
+    ctx.arc(Math.cos(sa) * re, Math.sin(sa) * re, 4, 0, Math.PI * 2)
     ctx.fill()
-    ctx.restore()
   }
+  ctx.restore()
 
-  // 天池在盘面之上
+  // 天池、十字线、指针、当前方位标记这四层都不随盘面旋转
+
   drawHub(ctx, cx, cy, hubR, c, props.azimuth, true, size)
 
   // 当前手机方位：只随方位角
@@ -217,6 +212,7 @@ function onMove(ev) {
   moved += Math.abs(delta)
   // 盘面跟手旋转，松手即停
   rotation.value = normalize(rotation.value + delta)
+  emit('rotate', rotation.value)   // 底部右侧要按指针在转过来的盘面上所指来显示
   render()
   ev.preventDefault()
 }
@@ -228,10 +224,10 @@ function onUp(ev) {
   clearHold()
   // 拖动距离很小视为点击
   if (moved < 4) {
-    // 内盘、外圈、方角，点哪都是「相对盘心的方位」；
-    // 角度圈不随盘面旋转，所以这里用屏幕角度，不扣拖拽出来的 rotation。
+    // 内盘、外圈、方角，点哪都是「相对盘心的方位」。
+    // 角度圈现在跟着盘面转，所以要扣掉拖拽出来的 rotation 才是圈上的读数。
     const p = localPoint(ev)
-    emit('pick', angleAt(p.x, p.y, boxSize.value))
+    emit('pick', normalize(angleAt(p.x, p.y, boxSize.value) - rotation.value))
   }
   ev.preventDefault()
 }

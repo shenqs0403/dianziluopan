@@ -3,14 +3,14 @@ plugins {
 }
 
 android {
-    namespace = "com.dianziluopan.app"
+    namespace = "com.linglongopc.dianziluopan"
     compileSdk = 36
     // 若本机只装了 android-36.1 平台，可改用下面两行：
     // compileSdk = 36
     // compileSdkMinor = 1
 
     defaultConfig {
-        applicationId = "com.dianziluopan.app"
+        applicationId = "com.linglongopc.dianziluopan"
         minSdk = 24            // Android 7.0
         targetSdk = 36
         versionCode = 1

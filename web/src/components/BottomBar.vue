@@ -1,16 +1,20 @@
 <script setup>
 /**
- * 第三部分左右等分两半：左边「选定方位」（点外圈角度带选定，未选时跟随陀螺仪），
- * 右边「陀螺仪南向」（红针所指 = 实时方位 + 180°）。
- * 两半显示同样的六项：度数、方向、坐山、朝山、吉凶、吉凶说明。
- * 放山靠点盘面完成，这里不再放「清除」按钮。
+ * 第三部分左右等分两半，两半显示同样的六项：度数、方向、坐山、朝山、吉凶、吉凶说明。
+ *
+ * 两半的数据来源必须互不相干：
+ * - 左「选定方位」只跟用户点击有关，点一下就定住；
+ * - 右「陀螺仪南向」＝红针在当前盘面上所指的度数，只跟传感器方向和盘面旋转有关，
+ *   连坐山、朝山、吉凶都按它自己的方位现算，不共用点击产生的坐山朝山，
+ *   所以点盘面不会影响右边，但转动内盘会。
  */
 import { computed } from 'vue'
 import { azimuthLuck } from '../dial/fortune.js'
-import { directionName, normalize } from '../dial/mountains.js'
+import { directionName, mountainOf, normalize } from '../dial/mountains.js'
 
 const props = defineProps({
-  azimuth: { type: Number, default: 0 },
+  /** 右侧「陀螺仪南向」：红针在当前盘面上所指的度数（已扣掉盘面旋转） */
+  south: { type: Number, default: 180 },
   /** 左侧「选定方位」的角度 */
   selected: { type: Number, default: 0 },
   sitting: { type: Object, default: null },
@@ -18,15 +22,20 @@ const props = defineProps({
 })
 
 /** 显示用度数：359.97° 这类四舍五入到 360 的值要显示成 0.0° */
-const halves = computed(() => [
-  { key: 'pick', title: '选定方位', deg: props.selected },
-  { key: 'south', title: '陀螺仪南向', deg: normalize(props.azimuth + 180) }
-].map((h) => ({
-  ...h,
-  degText: normalize(Math.round(h.deg * 10) / 10).toFixed(1),
-  dir: directionName(h.deg),
-  luck: azimuthLuck(props.sitting, h.deg)
-})))
+const halves = computed(() => {
+  const south = normalize(props.south)
+  return [
+    // 左半：坐山朝山来自点击
+    { key: 'pick', title: '选定方位', deg: props.selected, sit: props.sitting, fac: props.facing },
+    // 右半：坐山朝山按自己这个方位现算，只跟陀螺仪走
+    { key: 'south', title: '陀螺仪南向', deg: south, sit: mountainOf(south), fac: mountainOf(south + 180) }
+  ].map((h) => ({
+    ...h,
+    degText: normalize(Math.round(h.deg * 10) / 10).toFixed(1),
+    dir: directionName(h.deg),
+    luck: azimuthLuck(h.sit, h.deg)
+  }))
+})
 </script>
 
 <template>
@@ -38,8 +47,8 @@ const halves = computed(() => [
         <span class="dir">{{ h.dir }}</span>
       </div>
       <div class="pair">
-        <span class="tag sit">坐山<em>{{ sitting ? sitting.text : '—' }}</em></span>
-        <span class="tag fac">朝山<em>{{ facing ? facing.text : '—' }}</em></span>
+        <span class="tag sit">坐山<em>{{ h.sit ? h.sit.text : '—' }}</em></span>
+        <span class="tag fac">朝山<em>{{ h.fac ? h.fac.text : '—' }}</em></span>
       </div>
       <div class="foot-note">
         <span class="luck" :class="h.luck.luck">{{ h.luck.luck }}</span>

@@ -1,4 +1,4 @@
-package com.dianziluopan.app
+package com.linglongopc.dianziluopan
 
 import android.content.Context
 import android.content.SharedPreferences
