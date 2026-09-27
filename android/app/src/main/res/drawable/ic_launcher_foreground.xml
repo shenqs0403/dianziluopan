@@ -1,0 +1,37 @@
+<?xml version="1.0" encoding="utf-8"?>
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="108"
+    android:viewportHeight="108">
+
+    <!-- 外圈 -->
+    <path
+        android:pathData="M54,18 A36,36 0 1,1 53.9,18"
+        android:strokeColor="#FFE8C88A"
+        android:strokeWidth="3"
+        android:fillColor="#00000000" />
+
+    <!-- 十字线 -->
+    <path
+        android:pathData="M54,18 L54,90 M18,54 L90,54"
+        android:strokeColor="#66E8C88A"
+        android:strokeWidth="1.5" />
+
+    <!-- 北针（红） -->
+    <path
+        android:pathData="M54,24 L61,54 L54,59 L47,54 Z"
+        android:fillColor="#FFE23B2E" />
+
+    <!-- 南针（白） -->
+    <path
+        android:pathData="M54,84 L47,54 L54,49 L61,54 Z"
+        android:fillColor="#FFF3EAD8" />
+
+    <!-- 中心天池 -->
+    <path
+        android:pathData="M54,54 m-5,0 a5,5 0 1,0 10,0 a5,5 0 1,0 -10,0"
+        android:fillColor="#FF7A1410"
+        android:strokeColor="#FFE8C88A"
+        android:strokeWidth="1.5" />
+</vector>

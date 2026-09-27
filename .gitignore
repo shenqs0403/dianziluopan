@@ -1,0 +1,19 @@
+.idea/
+*.iml
+.DS_Store
+.vscode/
+
+# 构建产物
+node_modules/
+web/dist/
+web/dist-ssr/
+
+# Android
+android/.gradle/
+android/build/
+android/app/build/
+android/local.properties
+android/.kotlin/
+*.apk
+*.aab
+*.keystore

@@ -1,0 +1,22 @@
+{
+  "name": "dianziluopan-web",
+  "version": "1.0.0",
+  "private": true,
+  "description": "电子罗盘 Vue 界面工程（Android / iOS / 鸿蒙 / 鸿蒙快应用共用同一份界面）",
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build && node scripts/inline-dist.mjs",
+    "preview": "vite preview --host 0.0.0.0 --port 5173",
+    "sync": "node scripts/sync-dist.mjs",
+    "smoke": "node scripts/smoke.mjs",
+    "check": "npm run smoke && npm run build"
+  },
+  "dependencies": {
+    "vue": "^3.5.13"
+  },
+  "devDependencies": {
+    "@vitejs/plugin-vue": "^5.2.1",
+    "vite": "^6.0.7"
+  }
+}
