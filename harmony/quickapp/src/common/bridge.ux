@@ -1,0 +1,69 @@
+<script>
+/**
+ * 注入给快应用内嵌 web 页面用的原生桥。
+ *
+ * 命名必须和 web/src/platform/quickapp.js 对齐：window.DiZhiNative。
+ * 原生 -> JS 统一走 window.__diZhiBridge.emit(type, payload)，
+ * 与 Android / iOS / ArkTS 三个端完全一样。
+ *
+ * getPrefs/setPrefs 必须是同步的：web/src/platform/index.js 的 loadPrefs()
+ * 拿到返回值后立刻 JSON.parse，返回 Promise 会让配置全部退回默认值。
+ */
+export default {
+  startSensors: function () {
+    console.info('[DiZhiNative] startSensors')
+    // 具体传感器订阅按目标快应用运行时的 @system.sensor 接口实现，
+    // 收到读数后调用 emitSensor(JSON.parse(JSON.stringify(reading)))
+    bridge.startSensors()
+  },
+  stopSensors: function () {
+    console.info('[DiZhiNative] stopSensors')
+    bridge.stopSensors()
+  },
+  setTheme: function (dark) {
+    console.info('[DiZhiNative] setTheme', dark)
+    // 页面自己按亮/暗重绘（draw.js 有两套 PALETTE），这边不用动标题栏
+    bridge.setTheme(!!dark)
+  },
+  vibrate: function (ms) {
+    console.info('[DiZhiNative] vibrate', ms)
+    bridge.vibrate(ms)
+  },
+  keepScreenOn: function (flag) {
+    console.info('[DiZhiNative] keepScreenOn', flag)
+    bridge.keepScreenOn(!!flag)
+  },
+  getPrefs: function () {
+    return bridge.getPrefs()
+  },
+  setPrefs: function (json) {
+    bridge.setPrefs(json)
+  },
+  close: function () {
+    bridge.close()
+  }
+}
+
+/** 原生 -> JS 的唯一出口 */
+export var emitSensor = function (json) {
+  // 加 window.__diZhiBridge && 是为了页面还没加载完时不报错
+  console.info('[DiZhiBridge] emit sensor', json)
+  window.__diZhiBridge && window.__diZhiBridge.emit('sensor', json)
+}
+
+/**
+ * platform/index.js 的 detect() 优先看 window.DiZhiNative.__platform，
+ * 认不出来才退回猜 UA（快应用的 UA 不一定带 quickapp 字样）。
+ * 必须在注入的这份脚本里打标记：外层 .ux 的 window 和 web 页面不是同一个。
+ */
+export var markPlatform = function () {
+  if (window.DiZhiNative) {
+    window.DiZhiNative.__platform = 'quickapp'
+  }
+}
+
+/** 生命周期事件，name 只能是 pause / resume / back（见 contract.js） */
+export var emitEvent = function (name) {
+  window.__diZhiBridge && window.__diZhiBridge.emit('event', { name: name })
+}
+</script>

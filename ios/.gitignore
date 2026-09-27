@@ -1,0 +1,12 @@
+# iOS 的 .xcodeproj 不进版本库：
+# pbxproj 是 UUID 引用式结构，diff 看不懂、冲突基本无法人工合并。
+# 改工程结构请改 project.yml，然后本地跑 xcodegen generate 重新生成。
+DiZhi.xcodeproj/
+*.xcworkspace
+build/
+DerivedData/
+xcuserdata/
+*.xcuserstate
+
+# macOS
+.DS_Store

@@ -1,0 +1,41 @@
+# XcodeGen 工程描述：跑 `xcodegen generate` 生成 DiZhi.xcodeproj，再打开。
+#
+# 为什么不直接提交 .xcodeproj：那是 pbxproj（二进制式 UUID 引用），
+# 手写和 code review 都没法看，冲突也几乎无法人工合并。
+# 这里用声明式描述，project.yml 进了版本库，生成物本地保留、不提交。
+name: DiZhi
+options:
+  bundleIdPrefix: com.linglongopc
+  createIntermediateGroups: true
+  deploymentTarget:
+    iOS: "14.0"
+
+settings:
+  base:
+    SWIFT_VERSION: "5.0"
+    # 界面自带深色配色，别让 Xcode 的 asset catalog 校验来插一脚
+    ENABLE_USER_SCRIPT_SANDBOXING: YES
+    SWIFT_TREAT_WARNINGS_AS_ERRORS: NO
+
+targets:
+  DiZhi:
+    type: application
+    platform: iOS
+    deploymentTarget: "14.0"
+    sources:
+      - path: DiZhi
+    info:
+      path: DiZhi/Info.plist
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.linglongopc.dianziluopan
+        PRODUCT_NAME: DiZhi
+        TARGETED_DEVICE_FAMILY: "1,2"
+        GENERATE_INFOPLIST_FILE: NO
+        # 全屏、不要状态栏，界面自己就是 12/62/26 布局
+        CODE_SIGN_STYLE: Automatic
+        MARKETING_VERSION: "1.0"
+        CURRENT_PROJECT_VERSION: "1"
+    dependencies:
+      - sdk: CoreMotion.framework
+      - sdk: WebKit.framework

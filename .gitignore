@@ -17,3 +17,19 @@ android/.kotlin/
 *.apk
 *.aab
 *.keystore
+
+# iOS
+ios/DiZhi.xcodeproj/
+ios/DerivedData/
+ios/build/
+
+# 鸿蒙
+harmony/**/oh_modules/
+harmony/**/build/
+harmony/.hvigor/
+harmony/local.properties
+harmony/.idea/
+
+# 快应用
+harmony/quickapp/node_modules/
+harmony/quickapp/build/

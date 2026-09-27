@@ -1,0 +1,12 @@
+{
+  "app": {
+    // 与 Android / iOS 保持同一个包名
+    "bundleName": "com.linglongopc.dianziluopan",
+    "vendor": "linglongopc",
+    "versionCode": 1000000,
+    "versionName": "1.0.0",
+    "label": "$string:app_name"
+    // icon / startWindowIcon 故意不写：还没有图片资源，
+    // 写 $media:xxx 会因为文件不存在直接编译失败。放好图标后补上即可。
+  }
+}

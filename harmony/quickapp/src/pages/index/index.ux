@@ -1,0 +1,45 @@
+<template>
+  <div class="page">
+    <!--
+      web-view 加载的是 web 工程构建产物，经 sync-dist 同步到 quickapp/src/www。
+      src 用相对路径：快应用打包后 web 资源与 .ux 同级目录结构。
+    -->
+    <web-view class="dial" src="./www/index.html" />
+  </div>
+</template>
+
+<script>
+import bridge from '../../common/bridge.ux'
+
+export default {
+  private: {
+    // 页面显示/隐藏对应 Android 的 onResume/onPause，事件名沿用同一套
+    webview: null
+  },
+  onInit: function () {
+    console.info('[DiZhiIndex] onInit')
+  },
+  onShow: function () {
+    bridge.emitEvent('resume')
+  },
+  onHide: function () {
+    bridge.stopSensors()
+    bridge.emitEvent('pause')
+  },
+  onDestroy: function () {
+    bridge.stopSensors()
+  }
+}
+</script>
+
+<style>
+.page {
+  flex-direction: column;
+  background-color: #120a05;
+}
+
+.dial {
+  width: 100%;
+  height: 100%;
+}
+</style>

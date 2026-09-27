@@ -156,7 +156,8 @@ export function drawHub(ctx, cx, cy, r, colors, azimuth, showCross, size) {
 
 /**
  * 外圈角度刻度：画在内盘与正方形之间的空隙圆周上，0°~360°。
- * 这层属于外框，不随盘面拖动旋转，所以每帧单独画，不进盘面缓存。
+ * 这层属于内盘：跟着盘面一起旋转，所以由 drawDial 在 applyRotation 内绘制。
+ * 0°/180° 写「北」「南」而不是数字。
  */
 export function drawDegreeRing(ctx, cx, cy, rInner, rOuter, colors, size) {
   const rText = (rInner + rOuter) / 2

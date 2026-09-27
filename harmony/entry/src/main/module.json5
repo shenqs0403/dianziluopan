@@ -1,0 +1,39 @@
+{
+  "module": {
+    "name": "entry",
+    "type": "entry",
+    "description": "$string:module_desc",
+    "mainElement": "EntryAbility",
+    "deviceTypes": ["phone", "tablet"],
+    "deliveryWithInstall": true,
+    "installationFree": false,
+    "pages": "$profile:main_pages",
+    "abilities": [
+      {
+        "name": "EntryAbility",
+        "srcEntry": "./ets/entryability/EntryAbility.ets",
+        "description": "$string:EntryAbility_desc",
+        "label": "$string:EntryAbility_label",
+        "startWindowBackground": "$color:start_window_background",
+        // 罗盘必须竖持，横屏的读数没有意义
+        "orientation": "portrait",
+        "exported": true,
+        "skills": [
+          {
+            "entities": ["entity.system.home"],
+            "actions": ["ohos.want.action.home"]
+          }
+        ]
+      }
+    ],
+    "requestPermissions": [
+      { "name": "ohos.permission.VIBRATE" }
+      // ORIENTATION / ROTATION_VECTOR 是系统基础传感器，不需要申请权限，
+      // 所以这里不写 ACCELEROMETER。只有将来加了加速度计回退才需要补
+      // ohos.permission.ACCELEROMETER（user_grant，还得配 reason + usedScene）。
+      //
+      // 也没有写 ohos.permission.APPROXIMATELY_LOCATION：真北换算用的是系统
+      // 位置服务的磁偏角，传感器链路不主动申请定位权限。
+    ]
+  }
+}

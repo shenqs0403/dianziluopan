@@ -1,0 +1,10 @@
+<script>
+export default {
+  onCreate: function () {
+    console.info('[DiZhiQuickApp] onCreate')
+  },
+  onDestroy: function () {
+    console.info('[DiZhiQuickApp] onDestroy')
+  }
+}
+</script>

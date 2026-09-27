@@ -6,8 +6,14 @@
 | --- | --- | --- | --- |
 | Vue 界面 | `web/` | 唯一的界面实现，Canvas 画盘 | ✅ 已完成 |
 | Android | `android/` | WebView 容器 + 陀螺仪（minSdk 24 / Android 7+） | ✅ 已完成，debug 包可安装 |
-| iOS | `ios/` | WKWebView 容器 + CoreMotion 陀螺仪 | 接口已留，待建工程 |
-| 鸿蒙 / 鸿蒙快应用 | `harmony/` | ArkWeb / 快应用容器 + sensor 服务 | 接口已留，待建工程 |
+| iOS | `ios/` | WKWebView 容器 + CoreMotion 陀螺仪 | 🟡 工程已建，未编译验证 |
+| 鸿蒙 | `harmony/` | ArkWeb 容器 + sensor 服务 | 🟡 工程已建，未编译验证 |
+| 鸿蒙快应用 | `harmony/quickapp/` | 快应用 web-view 容器 | 🟡 骨架已建，传感器未实现 |
+
+> iOS / 鸿蒙 / 快应用是在 **Linux** 上写的，本机没有 Xcode、DevEco Studio、
+> 也没有快应用打包器，所以**三端都没有编译过，更没上过真机**。
+> 已验证的只有：桥接方法名与 emit 出口一致（`npm run contract`）、
+> 鸿蒙配置语法、以及 Android 端 18 项 E2E。详见各端 README 的「已知限制」。
 
 ## 界面规格
 
@@ -35,12 +41,17 @@
 ```bash
 cd web
 npm install
-npm run check          # 自检 + 构建 + 内联为单文件 index.html
+npm run check          # 跨端契约校验 + 自检 + 构建 + 内联为单文件 index.html
 npm run e2e            # 端到端交互测试（需 adb + 设备/模拟器，会自己装包并清数据）
 npm run preview        # 打开 http://<本机IP>:5173/
 npm run sync           # 同步 dist/index.html 到 android 的 assets/www
-npm run sync -- ios harmony   # 需要时再同步其他端
+npm run sync -- ios harmony quickapp   # 需要时再同步其他端
 ```
+
+`npm run contract` 是跨端桥接的守门检查：它会**真的执行**各端 JS 适配器，
+用探针对象记录它们实际委派给原生的方法，再核对 Android / iOS / 鸿蒙 / 快应用
+的原生源码是否真的实现了这些方法。改 `web/src/platform/*.js` 或原生方法名后
+一定要跑，否则漏实现只会表现为「界面某功能静默失效」。
 
 ```bash
 cd android
@@ -51,5 +62,11 @@ adb install -r app/build/outputs/apk/debug/app-debug.apk
 `npm run smoke` 用假 ctx 断言绘制调用，不需要浏览器；`npm run e2e` 则跑在真机/模拟器的
 WebView 里，点真按钮、读真像素。App 已手动起好时可用 `node scripts/e2e.mjs --no-device` 跳过装包。
 
-当前只有 Android 端可用；`ios/README.md`、`harmony/README.md` 仍是待实现的接口说明。
-各端接入细节见 `web/README.md` 与 `android/README.md`。
+当前**只有 Android 端确认可用**（`npm run e2e` 18/18 通过）。
+iOS、鸿蒙、快应用三端的工程已建好，但都在 Linux 上写的、**未编译未上真机**。
+
+- `ios/README.md`：生成工程步骤、方位角参照系的选择依据、已知限制
+- `harmony/README.md`：现代 sensor API 写法（不要再用 `createSensor`）、权限、已知限制
+- `harmony/quickapp/README.md`：快应用现状与待补的传感器实现
+- `web/src/platform/contract.js`：四端共用的桥接契约
+- `android/README.md`：Android 端细节
