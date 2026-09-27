@@ -1,5 +1,5 @@
 import { buildLayers, DIAL_TYPES } from '../src/dial/layers.js'
-import { DARK, drawDegreeRing, drawDial, GEO } from '../src/dial/draw.js'
+import { DARK, drawDegreeRing, drawDial, GEO, PALETTE } from '../src/dial/draw.js'
 import { judge, azimuthLuck } from '../src/dial/fortune.js'
 import { mountainOf, MOUNTAINS } from '../src/dial/mountains.js'
 
@@ -17,6 +17,47 @@ const ctx = new Proxy({}, {
   },
   set() { return true }
 })
+
+/** 相对亮度与对比度，用来卡住「配色改了却看不见」这类问题。 */
+const srgb = (v) => (v <= 0.03928 ? v / 12.92 : ((v + 0.055) / 1.055) ** 2.4)
+const lum = (hex) => {
+  const n = [1, 3, 5].map((i) => srgb(parseInt(hex.slice(i, i + 2), 16) / 255))
+  return 0.2126 * n[0] + 0.7152 * n[1] + 0.0722 * n[2]
+}
+const contrast = (a, b) => {
+  const [hi, lo] = [lum(a), lum(b)].sort((x, y) => y - x)
+  return (hi + 0.05) / (lo + 0.05)
+}
+
+/**
+ * 亮色模式下正方形底色必须跟页面一致，圈上角度必须是黑的，
+ * 且两者对比度要够读。之前圈上角度复用深棕 #2E2416 画在深红 #3A0A0A 上，
+ * 对比度只有 1.11:1，等于隐形，这类问题只能靠数字卡住。
+ */
+function checkContrast() {
+  for (const [name, c] of [['亮色', PALETTE], ['暗色', DARK]]) {
+    const ring = contrast(c.ringText, c.bg)
+    if (ring < 4.5) {
+      throw new Error(`${name}下圈上角度 ${c.ringText} 对方块底 ${c.bg} 对比度仅 ${ring.toFixed(2)}:1，看不清`)
+    }
+    // 方块底与页面底一致时，方块只能靠描边区分，描边也得够得着
+    if (c.bg === '#F2E7D5') {
+      const edge = contrast(c.bgEdge, c.bg)
+      if (edge < 3) throw new Error(`${name}下方块底与页面同色，描边 ${c.bgEdge} 对比度仅 ${edge.toFixed(2)}:1`)
+      // 盘面若与方块同色，整个方块会糊成一片
+      const dial = contrast(c.ringFill, c.bg)
+      if (dial < 1.15) throw new Error(`${name}下盘面 ${c.ringFill} 与方块底 ${c.bg} 仅 ${dial.toFixed(2)}:1，糊在一起`)
+      // 实时方位线金色在浅底上很容易消失
+      const cur = contrast(c.markerCurrent, c.bg)
+      if (cur < 3) throw new Error(`${name}下实时方位线 ${c.markerCurrent} 在 ${c.bg} 上仅 ${cur.toFixed(2)}:1`)
+    }
+    console.log(`配色 ✓ ${name}：圈上角度对底色 ${ring.toFixed(1)}:1` +
+      (c.bg === '#F2E7D5'
+        ? `，描边 ${contrast(c.bgEdge, c.bg).toFixed(1)}:1，盘面 ${contrast(c.ringFill, c.bg).toFixed(2)}:1，实时线 ${contrast(c.markerCurrent, c.bg).toFixed(1)}:1`
+        : ''))
+  }
+  if (PALETTE.ringText !== '#000000') throw new Error('亮色下圈上角度应为纯黑')
+}
 
 /** 角度圈属于盘面层（随内盘一起旋转），0°/180° 用「北」「南」代替数字。 */
 function checkDegreeRing() {
@@ -60,6 +101,7 @@ function checkDegreeRing() {
   // drawDial 内部 translate 到盘心，盘面文字是盘心相对坐标
   const leaked = texts.filter((t) => Math.abs(Math.hypot(t.x, t.y) - rText) < 1)
   if (leaked.length) throw new Error('showRing:false 时角度圈仍被画出，会脱离盘面旋转')
+  checkContrast()
   console.log(`\n角度圈 ✓ 12 个标签、0°=北(上) 180°=南(下)、无 0/180 数字`)
   console.log(`角度圈进盘面层 ✓ 12 个标签全部画在 rotate() 之后，确实随内盘旋转`)
   console.log(`角度圈进盘面层 ✓ showRing:false 时不画，不会脱离盘面旋转`)

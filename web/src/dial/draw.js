@@ -1,25 +1,31 @@
 /**
- * 罗盘绘制：黑红底正方形、红色天心十字线、天池与指针、按层画内盘。
+ * 罗盘绘制：随主题取色的正方形底、红色天心十字线、天池与指针、按层画内盘。
  * 盘面不随手机旋转，只有指针随方位角转动；盘面旋转只由用户拖拽产生。
  */
 import { normalize } from './mountains.js'
 import { LUCK_COLOR } from './tables.js'
 
 export const PALETTE = {
-  bg: '#3A0A0A',
-  bgEdge: '#5C1111',
+  // 正方形底色跟页面底色一致（--bg: #f2e7d5），所以方块只靠 bgEdge 描边区分。
+  // 盘面比方块深一档：亮色下两者若同色，整个方块会糊成一片。
+  bg: '#F2E7D5',
+  bgEdge: '#8A7550',
   cross: '#E53935',
   needleNorth: '#1F5FA8',
   needleSouth: '#D32F2F',
-  ringFill: '#F6EEDD',
-  ringFillAlt: '#EFE3CE',
+  ringFill: '#E6D5B4',
+  ringFillAlt: '#DFCAA5',
   grid: '#8A7B60',
   tick: '#6A5535',
   text: '#2E2416',
   textDim: '#6B5D45',
+  // 圈上角度专用：亮色下方块底已变浅，用纯黑才够清楚。
+  // 早先复用 text(#2E2416 深棕) 画在 #3A0A0A 深红上，对比度只有 1.11:1，等于隐形。
+  ringText: '#000000',
   markerSitting: '#D32F2F',
   markerFacing: '#1F5FA8',
-  markerCurrent: '#FFB300',
+  // 亮色下 #FFB300 只有 1.47:1，在浅底上几乎看不见，换成主题的深琥珀色
+  markerCurrent: '#8A5A10',
   // 选定方位：金色已被实时指针占用，选紫罗兰色，明暗两套主题都看得清
   markerSelected: '#7B3FD4'
 }
@@ -34,6 +40,7 @@ export const DARK = {
   tick: '#9A8A66',
   text: '#F2E7D2',
   textDim: '#B5A484',
+  ringText: '#F2E7D2',
   markerSelected: '#B388FF'
 }
 
@@ -174,7 +181,7 @@ export function drawDegreeRing(ctx, cx, cy, rInner, rOuter, colors, size) {
 
   // 每 30° 一个数字，0° 落在正上方；0°/180° 用「北」「南」代替数字
   const CARDINAL = { 0: '北', 180: '南' }
-  ctx.fillStyle = colors.text
+  ctx.fillStyle = colors.ringText
   for (let d = 0; d < 360; d += 30) {
     const a = ((d - 90) * Math.PI) / 180
     const label = CARDINAL[d] || String(d)
