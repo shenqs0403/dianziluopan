@@ -247,8 +247,10 @@ class MainActivity : Activity() {
 
         if (orientation[0].isNaN()) return
         val magnetic = Math.toDegrees(orientation[0].toDouble()).toFloat() + declination
-        val tilt = Math.toDegrees(orientation[1].toDouble()).toFloat() + 90f  // 与竖直方向的夹角
-        val lean = Math.toDegrees(orientation[2].toDouble()).toFloat()         // 左右倾斜
+        // 与 JS 侧水平仪的帧一致：平放＝0°，顶边抬起为正（orientation[1] 平放≈90°、竖立≈0°）
+        val tilt = 90f - Math.toDegrees(orientation[1].toDouble()).toFloat()
+        // 与 JS 侧水平仪的帧一致：右侧抬起为正（orientation[2] 恰好反向）
+        val lean = -Math.toDegrees(orientation[2].toDouble()).toFloat()
 
         // 展开 0/360 接缝，指针与校对算法都不会被 359.9→0.1 打断
         var mag = ((magnetic % 360f) + 360f) % 360f

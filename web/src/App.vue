@@ -43,13 +43,13 @@ const calStatus = cal.statusText
 /** 校准零偏由 JS 侧补偿，四端共用同一逻辑。 */
 const azimuth = computed(() => normalize(rawAzimuth.value - cal.offset.value))
 /**
- * 底部右侧「陀螺仪南向」＝红针在「转过来的盘面」上所指的那个度数。
- * 屏幕角 azimuth+180 对应盘面角要扣掉盘面旋转量，所以内盘一转它就跟着变。
+ * 底部右侧「实时方位」＝蓝针（指北）在「转过来的盘面」上所指的那个度数。
+ * 屏幕角 azimuth 对应盘面角要扣掉盘面旋转量，所以内盘一转它就跟着变。
  */
-const south = computed(() => normalize(azimuth.value + 180 - rotation.value))
+const heading = computed(() => normalize(azimuth.value - rotation.value))
 
-/** 底部左侧「选定方位」：没点过就跟随陀螺仪实时方位 */
-const selected = computed(() => (pickedDeg.value == null ? azimuth.value : pickedDeg.value))
+/** 底部左侧「选定方位」：没点过就是 null，界面显示占位符而不是跟陀螺仪 */
+const selected = computed(() => pickedDeg.value)
 const showCalibrate = ref(!prefs.calibrated)
 // 首次进入就同步主题，避免 CSS 的 :root 默认暗色与 dark=false 打架
 document.documentElement.dataset.theme = dark.value ? 'dark' : 'light'
@@ -114,6 +114,8 @@ function onPick(deg) {
 }
 
 function clearAll() {
+  // 长按＝彻底清空：选定方位与坐山朝山一起清，底部左侧回到占位符
+  pickedDeg.value = null
   sitting.value = null
   facing.value = null
   step.value += 1
@@ -138,7 +140,7 @@ function clearAll() {
     </div>
 
     <div class="bottom">
-      <BottomBar :south="south" :selected="selected" :sitting="sitting" :facing="facing" />
+      <BottomBar :heading="heading" :selected="selected" :sitting="sitting" :facing="facing" />
     </div>
 
     <FirstRunNotice v-if="showNotice" :text="NOTICE_TEXT" @confirm="confirmNotice" />

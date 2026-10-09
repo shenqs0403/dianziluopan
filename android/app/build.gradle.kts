@@ -1,5 +1,21 @@
+import java.util.Properties
+
 plugins {
     id("com.android.application")   // 内置 Kotlin 支持（AGP 9）
+}
+
+// —— 发布签名 ——
+// 凭据与密钥不入库：android/keystore.properties 已被 .gitignore（密钥文件 app/release.keystore 由 *.keystore 忽略）。
+// 缺省时 release 退回未签名产物。首次生成（keytool）：
+//   keytool -genkeypair -v -keystore app/release.keystore -alias dianziluopan \
+//     -keyalg RSA -keysize 2048 -validity 10000 -storetype PKCS12
+val keystoreProps = Properties()
+val keystoreFile = rootProject.file("keystore.properties")
+val hasReleaseKeystore = keystoreFile.exists()
+if (hasReleaseKeystore) {
+    keystoreFile.inputStream().use { keystoreProps.load(it) }
+} else {
+    println("警告：未找到 android/keystore.properties，release 将产出未签名 APK")
 }
 
 android {
@@ -17,6 +33,17 @@ android {
         versionName = "1.0"
     }
 
+    signingConfigs {
+        if (hasReleaseKeystore) {
+            create("release") {
+                storeFile = file(keystoreProps.getProperty("storeFile"))
+                storePassword = keystoreProps.getProperty("storePassword")
+                keyAlias = keystoreProps.getProperty("keyAlias")
+                keyPassword = keystoreProps.getProperty("keyPassword")
+            }
+        }
+    }
+
     buildTypes {
         debug {
             isMinifyEnabled = false
@@ -24,6 +51,9 @@ android {
         release {
             isMinifyEnabled = false
             proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro")
+            if (hasReleaseKeystore) {
+                signingConfig = signingConfigs.getByName("release")
+            }
         }
     }
 

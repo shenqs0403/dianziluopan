@@ -164,6 +164,18 @@ const fireSetup = `window.__fire=(function(){
 })()`
 await evalJs(fireSetup)
 
+/* ---------- 0.5) 屏蔽原生传感器流 ---------- */
+// 模拟器/真机的实时读数 30Hz 连续推送（尤其 roll/pitch 抖动很大、方位角还会漂移），
+// 会把后面「合成读数」的断言盖掉。这里把 emit 包一层：原生 sensor 一律丢弃，
+// 合成发射改走 __origEmit 直通监听器，保证每一步都确定性。
+await evalJs(`(function(){
+  if(window.__sensorFiltered) return true;
+  var b=window.__diZhiBridge;
+  window.__origEmit=b.emit.bind(b);
+  b.emit=function(k,v){ if(k==='sensor'){ window.__nativeDropped=(window.__nativeDropped||0)+1; return true; } return window.__origEmit(k,v); };
+  window.__sensorFiltered=true; return true;
+})()`)
+
 /* ---------- 1) 首次提示 → 校对 ---------- */
 check('首次运行提示显示', await evalJs(`!!${byText('.btn', '我知道了')}`))
 await evalJs(`${byText('.btn', '我知道了')}.click(); true`)
@@ -178,7 +190,7 @@ const sim = `(function(){
   function step(){
     if(i>=120||Date.now()-t0>=8000){window.__calib.max=max;return}
     a+=dir*12; if(i%30===29)dir*=-1;
-    window.__diZhiBridge.emit('sensor',{azimuth:(((a%360)+360)%360),pitch:0,roll:0,accuracy:3});
+    window.__origEmit('sensor',{azimuth:(((a%360)+360)%360),pitch:0,roll:0,accuracy:3});
     var el=document.querySelector('.status');
     var m=el&&el.textContent.match(/(\\d+)%/);
     var p=m?+m[1]:0; if(p>max)max=p;
@@ -192,6 +204,13 @@ const calibMax = await evalJs(`window.__calib?window.__calib.max:0`)
 check('校对过程有进度反馈', calibMax >= 1, '峰值 ' + calibMax + '%')
 check('校对完成后遮罩自动关闭', await poll(`!document.querySelector('.skip')`, 15000))
 check('校对结果已落盘', /calibrated/.test(await evalJs(`String(window.DiZhiNative.getPrefs())`)))
+
+/* ---------- 1.5) 未点选时底部左侧显示占位符 ---------- */
+check('未点选时底部左侧显示占位符', await evalJs(`(()=>{
+  const h=document.querySelectorAll('.bottom .half')[0];
+  const t=h.innerText.split('\\n').map(s=>s.trim());
+  return t[1].replace(/°/,'')==='—'&&t[2]==='—'&&/—/.test(t[3])&&/—/.test(t[4]);
+})()`), await evalJs(`document.querySelectorAll('.bottom .half')[0].innerText.replace(/\\s+/g,' ').slice(0,40)`))
 
 /* ---------- 2) 主题 / 切盘 ---------- */
 const theme = () => evalJs(`document.documentElement.dataset.theme + '|' + getComputedStyle(document.querySelector('.app')).backgroundColor + '|' + getComputedStyle(document.querySelector('.btn')).backgroundColor`)
@@ -255,16 +274,29 @@ await evalJs(corner); await sleep(400)
 const h3 = await leftHalf()
 check('点方角同样按相对盘心方位拾取', near(degOf(h3.度数), 45, 0.5), `${h3.度数} ${h3.方向}`)
 
+/* ---------- 4.5) 右侧「实时方位」＝指北针读数（不是红针的南向） ---------- */
+// 原生流已被屏蔽，这里只走合成读数。校准会留下零偏 offset：先发 0 读出实际方位 az1，
+// 再由 raw=−az1 把壳体方位恰好定到 0°。右侧应显示 0.0° 正北；
+// 旧实现会显示 180°→正南，正好被这一条拦住。
+await evalJs(`window.__origEmit('sensor',{azimuth:0,pitch:0,roll:0,accuracy:3}); true`)
+await sleep(1200)   // 等低通平滑收敛
+const az1 = await rightDeg()
+await evalJs(`window.__origEmit('sensor',{azimuth:${norm360(360 - az1)},pitch:0,roll:0,accuracy:3}); true`)
+await sleep(1200)
+const headTxt = await rightHalf()
+check('右侧实时方位＝指北读数（0°→正北）',
+  (degOf(headTxt) < 8 || degOf(headTxt) > 352) && /正北/.test(headTxt), headTxt.slice(0, 60))
+
 /* ---------- 5) 点击不得影响右侧 ---------- */
 const s0 = await rightHalf()
 await evalJs(tap(0, -1)); await sleep(400)
 const s1 = await rightHalf()
 await evalJs(tap(0, 1)); await sleep(400)
 const s2 = await rightHalf()
-check('点盘面不改变右侧陀螺仪南向', s0 === s1 && s1 === s2, s2.slice(0, 60))
+check('点盘面不改变右侧实时方位', s0 === s1 && s1 === s2, s2.slice(0, 60))
 
 /* ---------- 6) 转动内盘：右侧跟着转，且点击改按盘面角拾取 ---------- */
-// 右侧 = 红针在转过来的盘面上的读数，所以转 +60° 它应该正好 -60°。
+// 右侧 = 指北针在转过来的盘面上的读数，所以转 +60° 它应该正好 -60°。
 // 传感器静止，全程只有盘面旋转这一个变量。
 const drag = (deg) => `(function(){
   window.__dragDone=false;
@@ -301,6 +333,10 @@ check('拖拽后指针命中内容随之变化', hitBefore !== hitAfter,
   `${hitBefore.slice(0, 30)} → ${hitAfter.slice(0, 30)}`)
 
 /* ---------- 8) 天心十字线像素校验 ---------- */
+// 先把方位角定到 45°：琥珀色「实时指针」射线只沿方位角方向，指向对角后
+// 四边的采样点都落在红色十字线上，不会被射线盖住（正北时顶边会被盖）。
+await evalJs(`window.__origEmit('sensor',{azimuth:45,pitch:0,roll:0,accuracy:3}); true`)
+await sleep(1100)
 const px = await evalJs(`(() => {
   const c = document.querySelector('canvas'), ctx = c.getContext('2d');
   const s = c.width, d = ctx.getImageData(0, 0, s, s).data;
@@ -314,6 +350,30 @@ const px = await evalJs(`(() => {
 })()`)
 const isRed = (c) => c[0] > 150 && c[1] < 110 && c[2] < 110
 check('天心十字线贯穿四边', ['上', '下', '左', '右'].every((k) => isRed(px[k])), JSON.stringify(px))
+
+/* ---------- 9) 十字双气泡水平仪：两轴各自响应 ---------- */
+const lev = () => evalJs(`(()=>{
+  const get = (sel) => {
+    const el = document.querySelector(sel);
+    const m = el && getComputedStyle(el).transform.match(/matrix\\([^,]+,[^,]+,[^,]+,[^,]+,\\s*([-\\d.]+),\\s*([-\\d.]+)\\)/);
+    return m ? [+m[1], +m[2]] : [0, 0];
+  };
+  return { x: get('.vial-x .ball'), y: get('.vial-y .ball') };
+})()`)
+const baseLev = await lev()
+// 与水平仪帧约定一致：roll>0＝右侧抬起、pitch>0＝顶边抬起。
+// 右高 25°、前高 20°：横管气泡应右移（正 dx）、竖管气泡应上移（负 dy）
+await evalJs(`window.__origEmit('sensor',{azimuth:0,pitch:20,roll:25,accuracy:3}); true`)
+await sleep(1100)
+const tiltedLev = await lev()
+check('水平仪横管随左右倾斜走（右高→气泡右移）',
+  tiltedLev.x[0] > baseLev.x[0] + 2, `x ${baseLev.x[0].toFixed(1)} → ${tiltedLev.x[0].toFixed(1)}`)
+check('水平仪竖管随前后倾斜走（前高→气泡上移）',
+  tiltedLev.y[1] < baseLev.y[1] - 2, `y ${baseLev.y[1].toFixed(1)} → ${tiltedLev.y[1].toFixed(1)}`)
+await evalJs(`window.__origEmit('sensor',{azimuth:0,pitch:0,roll:0,accuracy:3}); true`)
+await sleep(1100)
+const flatLev = await lev()
+check('水平仪回平后气泡归中', Math.abs(flatLev.x[0]) < 1 && Math.abs(flatLev.y[1]) < 1, JSON.stringify(flatLev))
 
 ws.close()
 console.log(ok.join('\n'))

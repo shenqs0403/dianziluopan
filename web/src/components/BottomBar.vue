@@ -3,9 +3,9 @@
  * 第三部分左右等分两半，两半显示同样的六项：度数、方向、坐山、朝山、吉凶、吉凶说明。
  *
  * 两半的数据来源必须互不相干：
- * - 左「选定方位」只跟用户点击有关，点一下就定住；
- * - 右「陀螺仪南向」＝红针在当前盘面上所指的度数，只跟传感器方向和盘面旋转有关，
- *   连坐山、朝山、吉凶都按它自己的方位现算，不共用点击产生的坐山朝山，
+ * - 左「选定方位」只跟用户点击有关，点一下就定住；没点过就显示占位符「—」；
+ * - 右「实时方位」＝蓝针（指北）在当前盘面上所指的度数，只跟传感器方向和盘面旋转有关，
+ *   坐山、朝山、吉凶都按它自己的方位现算（坐＝读数反方向、朝＝读数方向），
  *   所以点盘面不会影响右边，但转动内盘会。
  */
 import { computed } from 'vue'
@@ -13,28 +13,34 @@ import { azimuthLuck } from '../dial/fortune.js'
 import { directionName, mountainOf, normalize } from '../dial/mountains.js'
 
 const props = defineProps({
-  /** 右侧「陀螺仪南向」：红针在当前盘面上所指的度数（已扣掉盘面旋转） */
-  south: { type: Number, default: 180 },
-  /** 左侧「选定方位」的角度 */
-  selected: { type: Number, default: 0 },
+  /** 右侧「实时方位」：蓝针（指北）在当前盘面上所指的度数（已扣掉盘面旋转） */
+  heading: { type: Number, default: 0 },
+  /** 左侧「选定方位」的角度；null＝未选定，显示占位符 */
+  selected: { type: Number, default: null },
   sitting: { type: Object, default: null },
   facing: { type: Object, default: null }
 })
 
+/** 未选定时的占位显示：六项一律「—」 */
+const PLACEHOLDER = { degText: '—', dir: '—', sit: null, fac: null, luck: { luck: '—', note: '—' } }
+
 /** 显示用度数：359.97° 这类四舍五入到 360 的值要显示成 0.0° */
 const halves = computed(() => {
-  const south = normalize(props.south)
+  const heading = normalize(props.heading)
   return [
     // 左半：坐山朝山来自点击
     { key: 'pick', title: '选定方位', deg: props.selected, sit: props.sitting, fac: props.facing },
     // 右半：坐山朝山按自己这个方位现算，只跟陀螺仪走
-    { key: 'south', title: '陀螺仪南向', deg: south, sit: mountainOf(south), fac: mountainOf(south + 180) }
-  ].map((h) => ({
-    ...h,
-    degText: normalize(Math.round(h.deg * 10) / 10).toFixed(1),
-    dir: directionName(h.deg),
-    luck: azimuthLuck(h.sit, h.deg)
-  }))
+    { key: 'heading', title: '实时方位', deg: heading, sit: mountainOf(heading + 180), fac: mountainOf(heading) }
+  ].map((h) => {
+    if (h.deg == null || Number.isNaN(h.deg)) return { ...h, ...PLACEHOLDER }
+    return {
+      ...h,
+      degText: normalize(Math.round(h.deg * 10) / 10).toFixed(1),
+      dir: directionName(h.deg),
+      luck: azimuthLuck(h.sit, h.deg)
+    }
+  })
 })
 </script>
 

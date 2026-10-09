@@ -13,10 +13,22 @@ const props = defineProps({
 })
 const emit = defineEmits(['update:modelValue', 'toggle-theme'])
 
-/** 双层水平仪的悬停提示：状态靠气泡是否居中表达，不占界面文字 */
+/** 双层十字水平仪的悬停提示：状态靠气泡是否居中表达，不占界面文字 */
 const levelText = computed(() =>
   Math.abs(props.roll) < 1.2 && Math.abs(props.pitch) < 1.2 ? '水平' : '倾斜'
 )
+
+/**
+ * 气泡位移（px）：一横测左右倾斜、一竖测前后倾斜，各自独立一颗气泡。
+ * 帧约定（原生与 web 都已换算成同一套）：roll>0＝右侧抬起（右高）、pitch>0＝顶边抬起（前高）。
+ * 气泡只往「抬高的一侧」跑：横管 dx＝+roll（右高→右移），竖管 dy＝−pitch
+ * （CSS translateY 正方向是向下，前高时气泡要往上，故取负）。
+ * 系数 0.5、最大 13px 与 36px 槽长匹配，越靠近边缘越接近满量程。
+ */
+const LEV_MAX = 13
+const clampLev = (v) => Math.max(-LEV_MAX, Math.min(LEV_MAX, v))
+const levX = computed(() => clampLev(props.roll * 0.5))
+const levY = computed(() => clampLev(-props.pitch * 0.5))
 </script>
 
 <template>
@@ -33,15 +45,13 @@ const levelText = computed(() =>
       <button class="btn wide" @click="emit('toggle-theme')">{{ dark ? '亮色' : '暗色' }}</button>
     </div>
     <div class="level" :title="levelText">
-      <div class="lv-ring">
-        <span class="lv-cross lv-cross-h" />
-        <span class="lv-cross lv-cross-v" />
-        <div
-          class="lv-ball"
-          :style="{
-            transform: `translate(${Math.max(-9, Math.min(9, roll * 0.3))}px, ${Math.max(-9, Math.min(9, pitch * 0.3))}px)`
-          }"
-        />
+      <div class="vial vial-x">
+        <span class="v-center v-center-x" />
+        <span class="ball ball-x" :style="{ transform: `translateX(${levX}px)` }" />
+      </div>
+      <div class="vial vial-y">
+        <span class="v-center v-center-y" />
+        <span class="ball ball-y" :style="{ transform: `translateY(${levY}px)` }" />
       </div>
     </div>
     </div>
@@ -73,25 +83,23 @@ const levelText = computed(() =>
 .btn.wide { min-width: 46px; }
 .btn:active { background: var(--panel-2); }
 .btn.on { background: var(--gold); color: #fff; font-weight: 600; }
-.level { margin-left: auto; display: flex; align-items: center; }
-/* 双层圆形水平仪：外圈固定 + 十字参考 + 内层气泡随倾斜移动 */
-.lv-ring {
-  width: 34px; height: 34px; border-radius: 50%; position: relative;
-  border: 1.5px solid var(--line); background: var(--panel-2);
-  box-shadow: inset 0 0 0 3px var(--panel);
+.level { margin-left: auto; width: 36px; height: 36px; position: relative; flex: 0 0 auto; }
+/* 十字双气泡水平仪：横管测左右倾斜，竖管测前后倾斜，交叉处有定位刻度 */
+.vial {
+  position: absolute; background: var(--panel-2); border: 1px solid var(--line);
 }
-.lv-cross {
-  position: absolute; background: var(--line-soft);
-}
-.lv-cross-h { left: 3px; right: 3px; top: 50%; height: 1px; transform: translateY(-0.5px); }
-.lv-cross-v { top: 3px; bottom: 3px; left: 50%; width: 1px; transform: translateX(-0.5px); }
-.lv-ball {
-  position: absolute; left: 50%; top: 50%; width: 13px; height: 13px;
-  margin: -6.5px 0 0 -6.5px; border-radius: 50%;
+.vial-x { left: 0; right: 0; top: 50%; height: 8px; margin-top: -4px; border-radius: 4px; }
+.vial-y { top: 0; bottom: 0; left: 50%; width: 8px; margin-left: -4px; border-radius: 4px; }
+.ball {
+  position: absolute; left: 50%; top: 50%; width: 6px; height: 6px;
+  margin: -3px 0 0 -3px; border-radius: 50%;
   background: radial-gradient(circle at 35% 30%, #ffe9a8, #d9a441);
-  box-shadow: 0 0 0 1.5px var(--bg);
+  box-shadow: 0 0 0 1px var(--bg);
   transition: transform .12s linear;
 }
+.v-center { position: absolute; background: var(--line-soft); }
+.v-center-x { left: 50%; top: 1px; bottom: 1px; width: 1px; margin-left: -0.5px; }
+.v-center-y { top: 50%; left: 1px; right: 1px; height: 1px; margin-top: -0.5px; }
 .needle {
   margin-top: 3px;
   font-size: 10.5px; line-height: 1.35; color: var(--text-dim);
