@@ -8,6 +8,131 @@
     />
     <meta name="format-detection" content="telephone=no" />
     <title>电子罗盘</title>
+    <!--
+      Android 7（API 24）的系统 WebView 是 Chromium 51，除语法外还缺一批
+      ES2017/2018 运行时 API。这段补丁必须是普通脚本、放在文档最前面，且不能进
+      bundle：打包器会把 `var __getOwnPropDescriptors = Object.getOwnPropertyDescriptors`
+      这类 helper 提升到 bundle 顶部并缓存引用，等 bundle 内的 polyfill 再执行就晚了。
+      放在 head 里可保证先于末尾的业务脚本运行；新内核上都有原生实现，直接跳过。
+    -->
+    <script>
+      (function () {
+        function define(target, name, value) {
+          if (target[name] !== undefined) return
+          try {
+            Object.defineProperty(target, name, { value: value, writable: true, configurable: true })
+          } catch (e) { target[name] = value }
+        }
+        var names = Object.getOwnPropertyNames || function (o) { return Object.keys(o) }
+        var symbols = Object.getOwnPropertySymbols || function () { return [] }
+
+        if (typeof Object.getOwnPropertyDescriptors !== 'function') {
+          define(Object, 'getOwnPropertyDescriptors', function (obj) {
+            var source = Object(obj)
+            var result = {}
+            names(source).forEach(function (key) {
+              result[key] = Object.getOwnPropertyDescriptor(source, key)
+            })
+            symbols(source).forEach(function (key) {
+              result[key] = Object.getOwnPropertyDescriptor(source, key)
+            })
+            return result
+          })
+        }
+
+        if (typeof Object.entries !== 'function') {
+          define(Object, 'entries', function (obj) {
+            return Object.keys(Object(obj)).map(function (key) { return [key, obj[key]] })
+          })
+        }
+
+        if (typeof Object.values !== 'function') {
+          define(Object, 'values', function (obj) {
+            return Object.keys(Object(obj)).map(function (key) { return obj[key] })
+          })
+        }
+
+        if (typeof Object.fromEntries !== 'function') {
+          define(Object, 'fromEntries', function (iterable) {
+            var result = {}
+            var list = iterable == null ? [] : iterable
+            var pairs = typeof list[Symbol.iterator] === 'function'
+              ? Array.prototype.slice.call(list)
+              : Object.keys(list).map(function (k) { return [k, list[k]] })
+            pairs.forEach(function (pair) { result[pair[0]] = pair[1] })
+            return result
+          })
+        }
+
+        if (typeof String.prototype.padStart !== 'function') {
+          define(String.prototype, 'padStart', function (targetLength, padString) {
+            var str = String(this)
+            var target = targetLength >> 0
+            var pad = padString === undefined ? ' ' : String(padString)
+            if (str.length >= target || pad === '') return str
+            while (pad.length < target - str.length) pad += pad
+            return pad.slice(0, target - str.length) + str
+          })
+        }
+
+        if (typeof String.prototype.padEnd !== 'function') {
+          define(String.prototype, 'padEnd', function (targetLength, padString) {
+            var str = String(this)
+            var target = targetLength >> 0
+            var pad = padString === undefined ? ' ' : String(padString)
+            if (str.length >= target || pad === '') return str
+            while (pad.length < target - str.length) pad += pad
+            return str + pad.slice(0, target - str.length)
+          })
+        }
+
+        if (typeof String.prototype.trimStart !== 'function') {
+          define(String.prototype, 'trimStart', function () { return String(this).replace(/^\s+/, '') })
+        }
+
+        if (typeof String.prototype.trimEnd !== 'function') {
+          define(String.prototype, 'trimEnd', function () { return String(this).replace(/\s+$/, '') })
+        }
+
+        if (typeof Array.prototype.flat !== 'function') {
+          define(Array.prototype, 'flat', function (depth) {
+            var level = depth === undefined ? 1 : Number(depth)
+            var flatten = function (arr, d) {
+              return arr.reduce(function (acc, item) {
+                return acc.concat(Array.isArray(item) && d > 0 ? flatten(item, d - 1) : item)
+              }, [])
+            }
+            return flatten(this, level > 0 ? level : 0)
+          })
+        }
+
+        if (typeof Array.prototype.flatMap !== 'function') {
+          define(Array.prototype, 'flatMap', function (callback, thisArg) {
+            return Array.prototype.map.call(this, callback, thisArg).flat()
+          })
+        }
+
+        if (typeof Promise.prototype.finally !== 'function') {
+          define(Promise.prototype, 'finally', function (onFinally) {
+            var C = this.constructor
+            return this.then(
+              function (value) { return C.resolve(onFinally()).then(function () { return value }) },
+              function (reason) { return C.resolve(onFinally()).then(function () { throw reason }) }
+            )
+          })
+        }
+
+        if (typeof window.queueMicrotask !== 'function') {
+          window.queueMicrotask = function (callback) {
+            Promise.resolve().then(callback).catch(function (e) { setTimeout(function () { throw e }, 0) })
+          }
+        }
+
+        if (typeof window.globalThis === 'undefined') {
+          window.globalThis = window
+        }
+      })()
+    </script>
   </head>
   <body>
     <div id="app"></div>

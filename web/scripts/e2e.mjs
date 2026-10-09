@@ -128,6 +128,42 @@ const degOf = (s) => parseFloat(String(s).match(/(-?[\d.]+)°/)[1])
 const near = (a, b, tol) => Math.abs(a - b) <= tol
 const norm360 = (d) => ((d % 360) + 360) % 360
 
+/**
+ * Android 7 的 Chromium 51 有两处和现代浏览器不同，这里必须绕开：
+ * 1. Runtime.evaluate 的 awaitPromise 无效，Promise 只会序列化成 {}，
+ *    所以凡是要在页面里跑时间循环的（画 8 字、拖拽），都不能用 async/await，
+ *    改成页面里 setTimeout 推进 + 完成标记，测试脚本轮询这个标记。
+ * 2. 没有 PointerEvent（Chrome 55 才有），交互模拟要按能力派发，
+ *    PointerEvent 缺失时用 TouchEvent（touch 事件在 Chromium 51 上工作正常）。
+ */
+const poll = async (expr, timeoutMs = 30000) => {
+  const t0 = Date.now()
+  for (;;) {
+    if (await evalJs(expr)) return true
+    if (Date.now() - t0 > timeoutMs) return false
+    await sleep(200)
+  }
+}
+
+const fireSetup = `window.__fire=(function(){
+  var c=document.querySelector('canvas');
+  var np=typeof PointerEvent!=='undefined';
+  return function(type,x,y){
+    var ev;
+    if(np){
+      ev=new PointerEvent(type,{clientX:x,clientY:y,bubbles:true,pointerId:1});
+    }else{
+      // Chromium 51 只有 touch 事件，把 pointer 语义映射到 touch
+      var tt=type==='pointerdown'?'touchstart':(type==='pointermove'?'touchmove':'touchend');
+      var mkT=function(){return new Touch({identifier:1,target:c,clientX:x,clientY:y})};
+      ev=new TouchEvent(tt,{touches:tt==='touchend'?[]:[mkT()],changedTouches:[mkT()],bubbles:true,cancelable:true});
+    }
+    c.dispatchEvent(ev);
+    return true;
+  };
+})()`
+await evalJs(fireSetup)
+
 /* ---------- 1) 首次提示 → 校对 ---------- */
 check('首次运行提示显示', await evalJs(`!!${byText('.btn', '我知道了')}`))
 await evalJs(`${byText('.btn', '我知道了')}.click(); true`)
@@ -136,23 +172,25 @@ check('提示关闭后出现校对遮罩', await evalJs(`!!${byText('.skip', '�
 check('校对已开始采集', await evalJs(`/已转|画/.test(document.body.innerText)`))
 
 // 模拟画「8」字：累计行程 >=360°、方向反转 >=2 次后应自动关闭
-const sim = `(async () => {
-  const t0 = Date.now();
-  let a = 0, dir = 1, max = 0, seen = [];
-  for (let i = 0; i < 120 && Date.now() - t0 < 8000; i++) {
-    a += dir * 12; if (i % 30 === 29) dir *= -1;
-    window.__diZhiBridge.emit('sensor', { azimuth: ((a % 360) + 360) % 360, pitch: 0, roll: 0, accuracy: 3 });
-    const p = +(document.querySelector('.status')?.textContent.match(/(\\d+)%/) || [0, 0])[1];
-    if (p > max) max = p;
-    if (i % 10 === 0) seen.push(p);
-    await new Promise(r => setTimeout(r, 30));
+const sim = `(function(){
+  var t0=Date.now(),a=0,dir=1,max=0,i=0;
+  window.__calib={max:0};
+  function step(){
+    if(i>=120||Date.now()-t0>=8000){window.__calib.max=max;return}
+    a+=dir*12; if(i%30===29)dir*=-1;
+    window.__diZhiBridge.emit('sensor',{azimuth:(((a%360)+360)%360),pitch:0,roll:0,accuracy:3});
+    var el=document.querySelector('.status');
+    var m=el&&el.textContent.match(/(\\d+)%/);
+    var p=m?+m[1]:0; if(p>max)max=p;
+    i++; setTimeout(step,30);
   }
-  return '峰值 ' + max + '%（采样 ' + seen.join(',') + '）';
+  step(); return true;
 })()`
-const prog = await evalJs(sim)
-check('校对过程有进度反馈', /峰值 [1-9]/.test(prog), prog)
-await sleep(900)
-check('校对完成后遮罩自动关闭', !(await evalJs(`!!${byText('.skip', '跳过')}`)))
+await evalJs(sim)
+await poll(`window.__calib&&window.__calib.max>=1`)
+const calibMax = await evalJs(`window.__calib?window.__calib.max:0`)
+check('校对过程有进度反馈', calibMax >= 1, '峰值 ' + calibMax + '%')
+check('校对完成后遮罩自动关闭', await poll(`!document.querySelector('.skip')`, 15000))
 check('校对结果已落盘', /calibrated/.test(await evalJs(`String(window.DiZhiNative.getPrefs())`)))
 
 /* ---------- 2) 主题 / 切盘 ---------- */
@@ -185,8 +223,9 @@ await sleep(300)
 const tap = (x, y) => `(() => {
   const c = document.querySelector('canvas'); const r = c.getBoundingClientRect();
   const cx = r.left + r.width / 2, cy = r.top + r.height / 2, rad = r.width * 0.36;
-  const ev = (t) => c.dispatchEvent(new PointerEvent(t, { clientX: cx + ${x} * rad, clientY: cy + ${y} * rad, bubbles: true, pointerId: 1 }));
-  ev('pointerdown'); ev('pointerup'); return true;
+  __fire('pointerdown', cx + ${x} * rad, cy + ${y} * rad);
+  __fire('pointerup', cx + ${x} * rad, cy + ${y} * rad);
+  return true;
 })()`
 const leftHalf = () => evalJs(`(()=>{const h=document.querySelectorAll('.bottom .half')[0]
   const t=h.innerText.split('\\n').map(s=>s.trim())
@@ -209,8 +248,8 @@ check('再点另一侧坐朝互换且方位差180',
 // 点方角（内盘之外）也应当作同一次拾取
 const corner = `(() => {
   const c = document.querySelector('canvas'); const r = c.getBoundingClientRect();
-  const o = { clientX: r.left + r.width / 2 + r.width * 0.44, clientY: r.top + r.height / 2 - r.width * 0.44, bubbles: true, pointerId: 1 };
-  c.dispatchEvent(new PointerEvent('pointerdown', o)); c.dispatchEvent(new PointerEvent('pointerup', o)); return true;
+  const x = r.left + r.width / 2 + r.width * 0.44, y = r.top + r.height / 2 - r.width * 0.44;
+  __fire('pointerdown', x, y); __fire('pointerup', x, y); return true;
 })()`
 await evalJs(corner); await sleep(400)
 const h3 = await leftHalf()
@@ -227,19 +266,23 @@ check('点盘面不改变右侧陀螺仪南向', s0 === s1 && s1 === s2, s2.slic
 /* ---------- 6) 转动内盘：右侧跟着转，且点击改按盘面角拾取 ---------- */
 // 右侧 = 红针在转过来的盘面上的读数，所以转 +60° 它应该正好 -60°。
 // 传感器静止，全程只有盘面旋转这一个变量。
-const drag = (deg) => `(async () => {
-  const c = document.querySelector('canvas'); const r = c.getBoundingClientRect();
-  const cx = r.left + r.width / 2, cy = r.top + r.height / 2, rad = r.width * 0.36;
-  const a0 = -Math.PI / 2, a1 = a0 + ${deg} * Math.PI / 180;
-  const mk = (a) => ({ clientX: cx + Math.cos(a) * rad, clientY: cy + Math.sin(a) * rad, bubbles: true, pointerId: 1 });
-  c.dispatchEvent(new PointerEvent('pointerdown', mk(a0)));
-  for (let i = 1; i <= 12; i++) { c.dispatchEvent(new PointerEvent('pointermove', mk(a0 + (a1 - a0) * i / 12))); await new Promise(r => setTimeout(r, 16)); }
-  c.dispatchEvent(new PointerEvent('pointerup', mk(a1)));
-  await new Promise(r => setTimeout(r, 250));
+const drag = (deg) => `(function(){
+  window.__dragDone=false;
+  var c=document.querySelector('canvas'),r=c.getBoundingClientRect();
+  var cx=r.left+r.width/2,cy=r.top+r.height/2,rad=r.width*0.36;
+  var a0=-Math.PI/2,a1=a0+${deg}*Math.PI/180;
+  var q0=[cx+Math.cos(a0)*rad, cy+Math.sin(a0)*rad];
+  __fire('pointerdown',q0[0],q0[1]);
+  var i=1;
+  (function step(){
+    if(i>12){ var q=[cx+Math.cos(a1)*rad, cy+Math.sin(a1)*rad]; __fire('pointerup',q[0],q[1]); window.__dragDone=true; return }
+    var a=a0+(a1-a0)*i/12; __fire('pointermove', cx+Math.cos(a)*rad, cy+Math.sin(a)*rad);
+    i++; setTimeout(step,16);
+  })();
   return true;
 })()`
 const rBefore = await rightDeg()
-await evalJs(drag(60)); await sleep(400)
+await evalJs(drag(60)); await poll(`window.__dragDone===true`); await sleep(250)
 const rAfter = await rightDeg()
 // 盘面转了多少，可以从右侧读数的变化反推，不用去猜内部状态
 const turned = norm360(rBefore - rAfter)
@@ -252,7 +295,7 @@ check('转动后点击按盘面角拾取', near(degOf(h4.度数), norm360(-turne
 
 /* ---------- 7) 拖拽后指针命中内容变化 ---------- */
 const hitBefore = await evalJs(`document.querySelector('.needle').textContent`)
-await evalJs(drag(90)); await sleep(400)
+await evalJs(drag(90)); await poll(`window.__dragDone===true`); await sleep(250)
 const hitAfter = await evalJs(`document.querySelector('.needle').textContent`)
 check('拖拽后指针命中内容随之变化', hitBefore !== hitAfter,
   `${hitBefore.slice(0, 30)} → ${hitAfter.slice(0, 30)}`)

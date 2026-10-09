@@ -50,11 +50,14 @@ const levelText = computed(() =>
 </template>
 
 <style scoped>
+/* Android 7 的 WebView 是 Chromium 51，不支持 flex 的 gap（Chrome 84 才有），
+   这里一律用 margin 代替，视觉间距保持一致。 */
 .bar {
-  height: 100%; display: flex; flex-direction: column; justify-content: center; gap: 3px;
+  height: 100%; display: flex; flex-direction: column; justify-content: center;
   padding: 2px 8px 3px; box-sizing: border-box; overflow: hidden;
 }
-.btns { display: flex; align-items: center; gap: 8px; }
+.btns { display: flex; align-items: center; }
+.btns > .group + .group { margin-left: 8px; }
 /* 连体按钮组：相邻按钮共边，只有首尾有圆角 */
 .group {
   display: flex; flex: 0 0 auto;
@@ -90,6 +93,7 @@ const levelText = computed(() =>
   transition: transform .12s linear;
 }
 .needle {
+  margin-top: 3px;
   font-size: 10.5px; line-height: 1.35; color: var(--text-dim);
   /* 内容可能很长（含 22 环命中），允许换行并给足两行高度 */
   display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical;

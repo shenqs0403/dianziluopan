@@ -86,6 +86,12 @@ class MainActivity : Activity() {
         }
         setupWebView()
         applyImmersive()
+        // Android 7.0（API 24）的 Chrome 51 WebView 在硬件加速下，canvas 缓冲里
+        // 有内容但屏幕合成不出来（真机上也有类似报告），只能强制软件渲染。
+        // 其它版本 WebView 正常，保持默认硬件加速。
+        if (Build.VERSION.SDK_INT == Build.VERSION_CODES.N) {
+            web.setLayerType(View.LAYER_TYPE_SOFTWARE, null)
+        }
         web.loadUrl("file:///android_asset/www/index.html")
     }
 

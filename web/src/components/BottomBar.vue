@@ -61,21 +61,26 @@ const halves = computed(() => {
 <style scoped>
 .panel {
   height: 100%; box-sizing: border-box; padding: 5px 8px 6px;
-  /* 1fr 1fr 保证左右严格等宽；用 flex 时第二个半区的 padding 会把外宽撑大 8px */
-  display: grid; grid-template-columns: 1fr 1fr; gap: 8px; overflow: hidden;
+  /* Android 7 WebView（Chromium 51）没有 CSS Grid，flex 也没有 gap（Chrome 84 才有）。
+     用 flex + flex:1 1 0 保证左右严格等宽（box-sizing:border-box 下 padding 不外扩），
+     间距一律用 margin 模拟。 */
+  display: flex; overflow: hidden;
 }
 .half {
-  box-sizing: border-box; min-width: 0;
-  display: flex; flex-direction: column; gap: 3px;
+  flex: 1 1 0; box-sizing: border-box; min-width: 0;
+  display: flex; flex-direction: column;
 }
-.half + .half { border-left: 1px solid var(--line-soft); padding-left: 8px; }
+.half > * + * { margin-top: 3px; }
+.half + .half { margin-left: 8px; border-left: 1px solid var(--line-soft); padding-left: 8px; }
 .half-title { font-size: 10px; color: var(--text-dim); letter-spacing: .5px; }
 
-.head { display: flex; align-items: baseline; gap: 6px; }
+.head { display: flex; align-items: baseline; }
+.head .dir { margin-left: 6px; }
 .deg { font-size: 21px; font-weight: 700; color: var(--accent); }
 .dir { font-size: 14px; color: var(--text-strong); }
 
-.pair { display: flex; gap: 5px; }
+.pair { display: flex; }
+.pair .tag + .tag { margin-left: 5px; }
 .tag {
   flex: 1; padding: 2px 0; text-align: center; font-size: 11px; white-space: nowrap;
   border: 1px solid var(--line); border-radius: 5px; background: var(--panel); color: var(--text-dim);
@@ -84,7 +89,8 @@ const halves = computed(() => {
 .tag.sit em { color: #ff8a80; }
 .tag.fac em { color: #90caf9; }
 
-.foot-note { display: flex; align-items: center; gap: 6px; flex: 1; min-height: 0; }
+.foot-note { display: flex; align-items: center; flex: 1; min-height: 0; }
+.foot-note .note { margin-left: 6px; }
 .luck {
   flex: 0 0 28px; width: 28px; height: 28px; border-radius: 50%;
   text-align: center; line-height: 28px; font-size: 14px; font-weight: 700;

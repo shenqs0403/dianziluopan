@@ -40,10 +40,7 @@ function checkContrast() {
     if (ring < 4.5) {
       throw new Error(`${name}下圈上角度 ${c.ringText} 对方块底 ${c.bg} 对比度仅 ${ring.toFixed(2)}:1，看不清`)
     }
-    // 方块底与页面底一致时，方块只能靠描边区分，描边也得够得着
     if (c.bg === '#F2E7D5') {
-      const edge = contrast(c.bgEdge, c.bg)
-      if (edge < 3) throw new Error(`${name}下方块底与页面同色，描边 ${c.bgEdge} 对比度仅 ${edge.toFixed(2)}:1`)
       // 盘面若与方块同色，整个方块会糊成一片
       const dial = contrast(c.ringFill, c.bg)
       if (dial < 1.15) throw new Error(`${name}下盘面 ${c.ringFill} 与方块底 ${c.bg} 仅 ${dial.toFixed(2)}:1，糊在一起`)
@@ -53,7 +50,7 @@ function checkContrast() {
     }
     console.log(`配色 ✓ ${name}：圈上角度对底色 ${ring.toFixed(1)}:1` +
       (c.bg === '#F2E7D5'
-        ? `，描边 ${contrast(c.bgEdge, c.bg).toFixed(1)}:1，盘面 ${contrast(c.ringFill, c.bg).toFixed(2)}:1，实时线 ${contrast(c.markerCurrent, c.bg).toFixed(1)}:1`
+        ? `，盘面 ${contrast(c.ringFill, c.bg).toFixed(2)}:1，实时线 ${contrast(c.markerCurrent, c.bg).toFixed(1)}:1`
         : ''))
   }
   if (PALETTE.ringText !== '#000000') throw new Error('亮色下圈上角度应为纯黑')

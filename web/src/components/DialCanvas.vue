@@ -120,9 +120,6 @@ function render() {
   ctx.clearRect(0, 0, size, size)
   ctx.fillStyle = c.bg
   ctx.fillRect(0, 0, size, size)
-  ctx.strokeStyle = c.bgEdge
-  ctx.lineWidth = 2
-  ctx.strokeRect(1, 1, size - 2, size - 2)
 
   // 缓存盘面：一次 drawImage 完成旋转。角度圈已经在缓存里，跟着一起转。
   const cx = size / 2
@@ -172,7 +169,11 @@ function render() {
 
 function localPoint(ev) {
   const rect = canvas.value.getBoundingClientRect()
-  const t = ev.touches ? ev.touches[0] : ev
+  // touchend / touchcancel 时 ev.touches 是空的，得从 changedTouches 取最后触点
+  let t = null
+  if (ev.touches && ev.touches.length) t = ev.touches[0]
+  else if (ev.changedTouches && ev.changedTouches.length) t = ev.changedTouches[0]
+  else t = ev
   return { x: t.clientX - rect.left, y: t.clientY - rect.top }
 }
 
@@ -188,7 +189,9 @@ function onDown(ev) {
   moved = 0
   lastAngle = angleAt(localPoint(ev).x, localPoint(ev).y, boxSize.value)
   // 指针已释放时 setPointerCapture 会抛 NotFoundError，包一层免得后面的长按逻辑不执行
-  try { canvas.value.setPointerCapture?.(ev.pointerId) } catch { /* 忽略 */ }
+  if (ev.pointerId != null) {
+    try { canvas.value.setPointerCapture?.(ev.pointerId) } catch { /* 忽略 */ }
+  }
   clearHold()
   holdTimer = setTimeout(() => {
     holdTimer = 0
@@ -197,7 +200,7 @@ function onDown(ev) {
     moved = 999           // 抑制松手时的放山
     emit('clear')
   }, 600)
-  ev.preventDefault()
+  if (ev.cancelable && ev.preventDefault) ev.preventDefault()
 }
 
 function onMove(ev) {
@@ -214,7 +217,7 @@ function onMove(ev) {
   rotation.value = normalize(rotation.value + delta)
   emit('rotate', rotation.value)   // 底部右侧要按指针在转过来的盘面上所指来显示
   render()
-  ev.preventDefault()
+  if (ev.cancelable && ev.preventDefault) ev.preventDefault()
 }
 
 function onUp(ev) {
@@ -229,15 +232,71 @@ function onUp(ev) {
     const p = localPoint(ev)
     emit('pick', normalize(angleAt(p.x, p.y, boxSize.value) - rotation.value))
   }
-  ev.preventDefault()
+  if (ev.cancelable && ev.preventDefault) ev.preventDefault()
 }
 
 // 供外部读取盘面旋转角与当前分层，用于计算指针命中的格子
 defineExpose({ rotation, layers, boxSize })
 
-onBeforeUnmount(clearHold)
+let unbindInteractions = null
+
+/**
+ * 归一化拖拽/点击的监听绑定：Android 7 的 Chromium 51 没有 PointerEvent，
+ * 只有 touch / mouse。按浏览器能力只绑一种事件源，避免双触发
+ * （Chrome 51 里 pointer 和 touch 都会出现，但 touch 的 preventDefault 会
+ * 抑制合成鼠标事件）。
+ */
+function bindInteractions() {
+  const c = canvas.value
+  if (!c) return
+  const down = onDown, move = onMove, up = onUp
+  let detach = null
+  if (window.PointerEvent) {
+    c.addEventListener('pointerdown', down)
+    c.addEventListener('pointermove', move)
+    c.addEventListener('pointerup', up)
+    c.addEventListener('pointercancel', up)
+    detach = () => {
+      c.removeEventListener('pointerdown', down)
+      c.removeEventListener('pointermove', move)
+      c.removeEventListener('pointerup', up)
+      c.removeEventListener('pointercancel', up)
+    }
+  } else if ('ontouchstart' in window) {
+    // Android 7 WebView（Chromium 51）
+    c.addEventListener('touchstart', down, { passive: false })
+    c.addEventListener('touchmove', move, { passive: false })
+    c.addEventListener('touchend', up)
+    c.addEventListener('touchcancel', up)
+    detach = () => {
+      c.removeEventListener('touchstart', down)
+      c.removeEventListener('touchmove', move)
+      c.removeEventListener('touchend', up)
+      c.removeEventListener('touchcancel', up)
+    }
+  } else {
+    // 桌面网页预览：鼠标拖拽
+    c.addEventListener('mousedown', down)
+    window.addEventListener('mousemove', move)
+    window.addEventListener('mouseup', up)
+    detach = () => {
+      c.removeEventListener('mousedown', down)
+      window.removeEventListener('mousemove', move)
+      window.removeEventListener('mouseup', up)
+    }
+  }
+  unbindInteractions = detach
+}
+
+onBeforeUnmount(() => {
+  clearHold()
+  if (unbindInteractions) unbindInteractions()
+  unbindInteractions = null
+})
+
 onMounted(() => {
   resize()
+  bindInteractions()
   window.addEventListener('resize', resize)
   window.addEventListener('orientationchange', () => setTimeout(resize, 120))
 })
@@ -265,10 +324,6 @@ watch(
     <canvas
       ref="canvas"
       class="dial"
-      @pointerdown="onDown"
-      @pointermove="onMove"
-      @pointerup="onUp"
-      @pointercancel="onUp"
     />
   </div>
 </template>

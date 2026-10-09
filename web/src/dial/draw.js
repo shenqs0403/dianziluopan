@@ -6,10 +6,8 @@ import { normalize } from './mountains.js'
 import { LUCK_COLOR } from './tables.js'
 
 export const PALETTE = {
-  // 正方形底色跟页面底色一致（--bg: #f2e7d5），所以方块只靠 bgEdge 描边区分。
-  // 盘面比方块深一档：亮色下两者若同色，整个方块会糊成一片。
+  // 正方形底色跟页面底色一致（--bg: #f2e7d5），盘面本身靠环与字区分，不加外框线
   bg: '#F2E7D5',
-  bgEdge: '#8A7550',
   cross: '#E53935',
   needleNorth: '#1F5FA8',
   needleSouth: '#D32F2F',
@@ -33,7 +31,6 @@ export const PALETTE = {
 export const DARK = {
   ...PALETTE,
   bg: '#1A0505',
-  bgEdge: '#2E0A0A',
   ringFill: '#211C14',
   ringFillAlt: '#2A2419',
   grid: '#7A6A4E',
@@ -233,12 +230,9 @@ export function drawDial(ctx, o) {
   ctx.save()
   ctx.clearRect(0, 0, size, size)
 
-  // 底色（黑红）与外框
+  // 底色（黑红），不画外框方线
   ctx.fillStyle = colors.bg
   ctx.fillRect(0, 0, size, size)
-  ctx.strokeStyle = colors.bgEdge
-  ctx.lineWidth = 2
-  ctx.strokeRect(1, 1, size - 2, size - 2)
 
   ctx.translate(cx, cy)
   ctx.rotate((rotation * Math.PI) / 180)
